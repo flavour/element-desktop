@@ -79,6 +79,10 @@ interface StoreData {
     safeStorageBackendMigrate?: boolean;
     /** whether to open the app at login minimised, only valid when app.openAtLogin is true */
     openAtLoginMinimised: boolean;
+    matrixTtsEnabled: boolean;
+    matrixTtsAllowlist: string[];
+    matrixTtsMaxChunkSize: number;
+    matrixTtsBaseUrl: string;
 }
 
 /**
@@ -209,6 +213,25 @@ class Store extends ElectronStore<StoreData> {
                 enableContentProtection: {
                     type: "boolean",
                     default: false,
+                },
+                matrixTtsEnabled: {
+                    type: "boolean",
+                    default: false,
+                },
+                matrixTtsAllowlist: {
+                    type: "array",
+                    items: {
+                        type: "string",
+                    },
+                    default: [],
+                },
+                matrixTtsMaxChunkSize: {
+                    type: "number",
+                    default: 220,
+                },
+                matrixTtsBaseUrl: {
+                    type: "string",
+                    default: "https://tts.frangent.org",
                 },
                 safeStorage: {
                     type: "object",

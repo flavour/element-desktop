@@ -12,6 +12,42 @@ import { randomArray } from "./utils.js";
 import { getDisplayMediaCallback, setDisplayMediaCallback } from "./displayMediaCallback.js";
 import Store, { clearDataAndRelaunch } from "./store.js";
 
+const DEFAULT_MATRIX_TTS_BASE_URL = "https://tts.frangent.org";
+const MATRIX_TTS_WARMUP_TIMEOUT_MS = Number.parseInt(process.env.ELEMENT_MATRIX_TTS_WARMUP_TIMEOUT_MS ?? "5000", 10);
+const MATRIX_TTS_SYNTH_TIMEOUT_MS = Number.parseInt(process.env.ELEMENT_MATRIX_TTS_SYNTH_TIMEOUT_MS ?? "30000", 10);
+
+interface MatrixTtsSynthesizeArgs {
+    text: string;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        return await fetch(url, {
+            ...init,
+            signal: controller.signal,
+        });
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+function getMatrixTtsBaseUrl(): string {
+    const configuredValue = Store.instance?.get("matrixTtsBaseUrl");
+    if (typeof configuredValue !== "string") {
+        return DEFAULT_MATRIX_TTS_BASE_URL;
+    }
+
+    const trimmedValue = configuredValue.trim();
+    if (!trimmedValue) {
+        return DEFAULT_MATRIX_TTS_BASE_URL;
+    }
+
+    return trimmedValue;
+}
+
 let focusHandlerAttached = false;
 ipcMain.on("loudNotification", function (): void {
     if (process.platform === "win32" || process.platform === "linux") {
@@ -200,6 +236,53 @@ ipcMain.on("ipcCall", async function (_ev: IpcMainEvent, payload) {
                 });
                 global.mainWindow.setTouchBar(touchBar);
             }
+            break;
+        }
+
+        case "matrixTtsWarmup": {
+            const matrixTtsBaseUrl = getMatrixTtsBaseUrl();
+            const response = await fetchWithTimeout(
+                `${matrixTtsBaseUrl}/model/load`,
+                {
+                    method: "POST",
+                },
+                MATRIX_TTS_WARMUP_TIMEOUT_MS,
+            );
+            if (!response.ok) {
+                throw new Error(`matrixTtsWarmup failed: HTTP ${response.status}`);
+            }
+            ret = { ok: true };
+            break;
+        }
+
+        case "matrixTtsSynthesize": {
+            const matrixTtsBaseUrl = getMatrixTtsBaseUrl();
+            const request = args[0] as MatrixTtsSynthesizeArgs | undefined;
+            if (!request?.text || typeof request.text !== "string") {
+                throw new Error("matrixTtsSynthesize requires a non-empty text string");
+            }
+
+            const response = await fetchWithTimeout(
+                `${matrixTtsBaseUrl}/synthesize`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ text: request.text }),
+                },
+                MATRIX_TTS_SYNTH_TIMEOUT_MS,
+            );
+
+            if (!response.ok) {
+                throw new Error(`matrixTtsSynthesize failed: HTTP ${response.status}`);
+            }
+
+            const audioBytes = Buffer.from(await response.arrayBuffer());
+            ret = {
+                audioBase64: audioBytes.toString("base64"),
+                mediaType: response.headers.get("content-type") ?? "audio/wav",
+            };
             break;
         }
 

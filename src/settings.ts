@@ -88,6 +88,44 @@ const Settings: Record<string, Setting> = {
             Store.instance?.set("enableContentProtection", value);
         },
     },
+    "Electron.matrixTtsEnabled": {
+        async read(): Promise<any> {
+            return Store.instance?.get("matrixTtsEnabled");
+        },
+        async write(value: any): Promise<void> {
+            Store.instance?.set("matrixTtsEnabled", Boolean(value));
+        },
+    },
+    "Electron.matrixTtsAllowlist": {
+        async read(): Promise<any> {
+            return Store.instance?.get("matrixTtsAllowlist");
+        },
+        async write(value: any): Promise<void> {
+            const allowlist = Array.isArray(value)
+                ? value.filter((item): item is string => typeof item === "string")
+                : [];
+            Store.instance?.set("matrixTtsAllowlist", allowlist);
+        },
+    },
+    "Electron.matrixTtsMaxChunkSize": {
+        async read(): Promise<any> {
+            return Store.instance?.get("matrixTtsMaxChunkSize");
+        },
+        async write(value: any): Promise<void> {
+            const parsed = Number.parseInt(String(value), 10);
+            const safeValue = Number.isFinite(parsed) ? Math.max(20, Math.min(2000, parsed)) : 220;
+            Store.instance?.set("matrixTtsMaxChunkSize", safeValue);
+        },
+    },
+    "Electron.matrixTtsBaseUrl": {
+        async read(): Promise<any> {
+            return Store.instance?.get("matrixTtsBaseUrl");
+        },
+        async write(value: any): Promise<void> {
+            const baseUrl = typeof value === "string" ? value.trim() : "";
+            Store.instance?.set("matrixTtsBaseUrl", baseUrl || "https://tts.frangent.org");
+        },
+    },
 };
 
 ipcMain.handle("getSupportedSettings", async () => {
